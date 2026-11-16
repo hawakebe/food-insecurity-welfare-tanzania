@@ -12,6 +12,7 @@ The paper studies the relationship between food insecurity and self-reported lif
 |---|---|
 | `KEBE_Food_Insecurity_Subjective_Welfare_Tanzania.pdf` | Paper |
 | `food_insecurity_tanzania.do` | Stata do-file: variable construction, descriptive statistics, figures, ordered logit models, marginal effects, robustness |
+| `food_insecurity_tanzania.log` | Stata log of the full run: every command with its output, so the results in the paper can be checked without access to the data |
 
 ## Data
 
