@@ -1,0 +1,828 @@
+---------------------------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/hawakebe/Downloads/Projects/Tanzania/output/food_insecurity_tanzania.log
+  log type:  text
+ opened on:  16 Nov 2026, 20:42:57
+
+. 
+. * outreg2 exports the regression tables; install it once if needed
+. capture which outreg2
+
+. if _rc ssc install outreg2
+
+. 
+. use "database_TZA.dta", clear
+
+. 
+. * -----------------------------------------------------------------------------
+. * 1. Variable construction
+. * -----------------------------------------------------------------------------
+. 
+. * Household size: number of individuals listed in the household roster
+. bysort HHID: generate HouseholdSize = _N
+
+. label variable HouseholdSize "Household size (roster members)"
+
+. 
+. * The survey codes yes/no questions as 1 = yes, 2 = no. Recode to 1/0.
+. label define yesno 0 "NO" 1 "YES"
+
+. 
+. generate byte FoodInsecurity = (hh_h01 == 1) if !missing(hh_h01)
+(10 missing values generated)
+
+. label variable FoodInsecurity "Worried about not having enough food, past 7 days"
+
+. 
+. generate byte FoodShortage12m = (hh_h08 == 1) if !missing(hh_h08)
+(10 missing values generated)
+
+. label variable FoodShortage12m "Did not have enough food at some point, past 12 months"
+
+. 
+. generate byte Labor = (hh_e03 == 1) if !missing(hh_e03)
+(993 missing values generated)
+
+. label variable Labor "Worked as an employee for a wage, past 7 days"
+
+. 
+. generate byte Healthcare = (hh_d02 == 1) if !missing(hh_d02)
+(54 missing values generated)
+
+. label variable Healthcare "Visited a health care provider, past 4 weeks"
+
+. 
+. label values FoodInsecurity FoodShortage12m Labor Healthcare yesno
+
+. 
+. * Estimated rental value of the dwelling, in TSH and in units of 100,000 TSH
+. generate double HousingCost = hh_i04
+(1,119 missing values generated)
+
+. generate double HousingCost100k = hh_i04 / 100000
+(1,119 missing values generated)
+
+. label variable HousingCost     "Estimated rental value of the dwelling (TSH)"
+
+. label variable HousingCost100k "Estimated rental value of the dwelling (100,000 TSH)"
+
+. 
+. * Demographic controls used in the robustness analysis
+. generate byte Female = (hh_b02 == 2) if !missing(hh_b02)
+(3 missing values generated)
+
+. label variable Female "Female"
+
+. 
+. generate Age = hh_b04
+(2 missing values generated)
+
+. generate AgeSq100 = Age^2 / 100
+(2 missing values generated)
+
+. label variable Age      "Age (years)"
+
+. label variable AgeSq100 "Age squared / 100"
+
+. 
+. generate byte School = (hh_c03 == 1) if !missing(hh_c03)
+(993 missing values generated)
+
+. label variable School "Ever attended school"
+
+. 
+. * Marital status: 1 monogamous married, 2 polygamous married, 3 living together
+. generate byte Married = inlist(hh_b19, 1, 2, 3) if !missing(hh_b19)
+(1,966 missing values generated)
+
+. label variable Married "Married or living together"
+
+. 
+. generate byte Urban = (sdd_rural == 2) if !missing(sdd_rural)
+
+. label variable Urban "Urban"
+
+. 
+. * -----------------------------------------------------------------------------
+. * 2. Coding of the dependent variable
+. * -----------------------------------------------------------------------------
+. 
+. * hh_g03_9: "How satisfied or dissatisfied would you say you are with your
+. * life as a whole?"  1 = very satisfied ... 7 = very dissatisfied,
+. * 8 = not applicable (3 respondents, dropped).
+. tabulate hh_g03_9, missing
+
+     How satisfied or dissatisfied |
+   would you say you are with YOUR |
+                  LIFE AS A WHOLE? |      Freq.     Percent        Cum.
+-----------------------------------+-----------------------------------
+                    VERY SATISFIED |         29        0.41        0.41
+                         SATISFIED |      1,132       15.93       16.34
+                SOMEWHAT SATISFIED |      1,431       20.14       36.48
+NEITHER SATISFIED NOR DISSATISFIED |          8        0.11       36.59
+             SOMEWHAT DISSATISFIED |        248        3.49       40.08
+                      DISSATISFIED |      1,159       16.31       56.40
+                 VERY DISSATISFIED |        106        1.49       57.89
+                    NOT APPLICABLE |          3        0.04       57.93
+                                 . |      2,989       42.07      100.00
+-----------------------------------+-----------------------------------
+                             Total |      7,105      100.00
+
+. drop if hh_g03_9 == 8
+(3 observations deleted)
+
+. 
+. * Reverse the scale so that higher values mean higher satisfaction
+. generate byte Satisfaction7 = 8 - hh_g03_9
+(2,989 missing values generated)
+
+. label define sat7 1 "VERY DISSATISFIED" 2 "DISSATISFIED" 3 "SOMEWHAT DISSATISFIED" ///
+>                   4 "NEITHER SATISFIED NOR DISSATISFIED" 5 "SOMEWHAT SATISFIED"    ///
+>                   6 "SATISFIED" 7 "VERY SATISFIED"
+
+. label values Satisfaction7 sat7
+
+. 
+. * Pearson chi-squared tests on each pair of adjacent categories: do they
+. * differ in their relationship with food insecurity?
+. forvalues k = 1/6 {
+  2.     local j = `k' + 1
+  3.     tabulate Satisfaction7 FoodInsecurity if inlist(Satisfaction7, `k', `j'), chi2
+  4. }
+
+                      |   Worried about not
+                      |  having enough food,
+                      |      past 7 days
+        Satisfaction7 |        NO        YES |     Total
+----------------------+----------------------+----------
+    VERY DISSATISFIED |        67         39 |       106 
+         DISSATISFIED |       896        263 |     1,159 
+----------------------+----------------------+----------
+                Total |       963        302 |     1,265 
+
+          Pearson chi2(1) =  10.6246   Pr = 0.001
+
+                      |   Worried about not
+                      |  having enough food,
+                      |      past 7 days
+        Satisfaction7 |        NO        YES |     Total
+----------------------+----------------------+----------
+         DISSATISFIED |       896        263 |     1,159 
+SOMEWHAT DISSATISFIED |       182         65 |       247 
+----------------------+----------------------+----------
+                Total |     1,078        328 |     1,406 
+
+          Pearson chi2(1) =   1.4949   Pr = 0.221
+
+                      |   Worried about not
+                      |  having enough food,
+                      |      past 7 days
+        Satisfaction7 |        NO        YES |     Total
+----------------------+----------------------+----------
+SOMEWHAT DISSATISFIED |       182         65 |       247 
+NEITHER SATISFIED NOR |         7          1 |         8 
+----------------------+----------------------+----------
+                Total |       189         66 |       255 
+
+          Pearson chi2(1) =   0.7710   Pr = 0.380
+
+                      |   Worried about not
+                      |  having enough food,
+                      |      past 7 days
+        Satisfaction7 |        NO        YES |     Total
+----------------------+----------------------+----------
+NEITHER SATISFIED NOR |         7          1 |         8 
+   SOMEWHAT SATISFIED |     1,158        273 |     1,431 
+----------------------+----------------------+----------
+                Total |     1,165        274 |     1,439 
+
+          Pearson chi2(1) =   0.2233   Pr = 0.637
+
+                      |   Worried about not
+                      |  having enough food,
+                      |      past 7 days
+        Satisfaction7 |        NO        YES |     Total
+----------------------+----------------------+----------
+   SOMEWHAT SATISFIED |     1,158        273 |     1,431 
+            SATISFIED |       997        134 |     1,131 
+----------------------+----------------------+----------
+                Total |     2,155        407 |     2,562 
+
+          Pearson chi2(1) =  24.7101   Pr = 0.000
+
+                      |   Worried about not
+                      |  having enough food,
+                      |      past 7 days
+        Satisfaction7 |        NO        YES |     Total
+----------------------+----------------------+----------
+            SATISFIED |       997        134 |     1,131 
+       VERY SATISFIED |        22          7 |        29 
+----------------------+----------------------+----------
+                Total |     1,019        141 |     1,160 
+
+          Pearson chi2(1) =   3.9997   Pr = 0.046
+
+. 
+. * "Dissatisfied" and "somewhat dissatisfied" cannot be distinguished
+. * (p = 0.221) and are merged. The middle category is kept as a separator.
+. recode Satisfaction7 (1 = 1) (2 3 = 2) (4 = 3) (5 = 4) (6 = 5) (7 = 6), ///
+>     generate(SubjectiveWelfare)
+(2848 differences between Satisfaction7 and SubjectiveWelfare)
+
+. label define sat6 1 "VERY DISSATISFIED" 2 "DISSATISFIED" 3 "INDIFFERENT" ///
+>                   4 "SOMEWHAT SATISFIED" 5 "SATISFIED" 6 "VERY SATISFIED"
+
+. label values SubjectiveWelfare sat6
+
+. label variable SubjectiveWelfare "Satisfaction with life as a whole (1 to 6)"
+
+. 
+. * -----------------------------------------------------------------------------
+. * 3. Descriptive statistics and figures
+. * -----------------------------------------------------------------------------
+. 
+. codebook SubjectiveWelfare FoodInsecurity Labor Healthcare HousingCost, compact
+
+Variable       Obs Unique      Mean  Min      Max  Label
+---------------------------------------------------------------------------------------------------------------------------------------
+Subjective~e  4113      6  3.525894    1        6  Satisfaction with life as a whole (1 to 6)
+FoodInsecu~y  7092      2  .2120699    0        1  Worried about not having enough food, past 7 days
+Labor         6109      2  .2327713    0        1  Worked as an employee for a wage, past 7 days
+Healthcare    7048      2  .2305619    0        1  Visited a health care provider, past 4 weeks
+HousingCost   5984     53   70037.8    0  1200000  Estimated rental value of the dwelling (TSH)
+---------------------------------------------------------------------------------------------------------------------------------------
+
+. tabulate SubjectiveWelfare
+
+ Satisfaction with |
+life as a whole (1 |
+             to 6) |      Freq.     Percent        Cum.
+-------------------+-----------------------------------
+ VERY DISSATISFIED |        106        2.58        2.58
+      DISSATISFIED |      1,407       34.21       36.79
+       INDIFFERENT |          8        0.19       36.98
+SOMEWHAT SATISFIED |      1,431       34.79       71.77
+         SATISFIED |      1,132       27.52       99.29
+    VERY SATISFIED |         29        0.71      100.00
+-------------------+-----------------------------------
+             Total |      4,113      100.00
+
+. tabulate FoodInsecurity
+
+    Worried |
+  about not |
+     having |
+     enough |
+ food, past |
+     7 days |      Freq.     Percent        Cum.
+------------+-----------------------------------
+         NO |      5,588       78.79       78.79
+        YES |      1,504       21.21      100.00
+------------+-----------------------------------
+      Total |      7,092      100.00
+
+. tabulate Labor
+
+  Worked as |
+an employee |
+for a wage, |
+past 7 days |      Freq.     Percent        Cum.
+------------+-----------------------------------
+         NO |      4,687       76.72       76.72
+        YES |      1,422       23.28      100.00
+------------+-----------------------------------
+      Total |      6,109      100.00
+
+. tabulate Healthcare
+
+  Visited a |
+health care |
+  provider, |
+     past 4 |
+      weeks |      Freq.     Percent        Cum.
+------------+-----------------------------------
+         NO |      5,423       76.94       76.94
+        YES |      1,625       23.06      100.00
+------------+-----------------------------------
+      Total |      7,048      100.00
+
+. summarize HousingCost, detail
+
+        Estimated rental value of the dwelling (TSH)
+-------------------------------------------------------------
+      Percentiles      Smallest
+ 1%            4              0
+ 5%         5000              0
+10%        10000              0       Obs               5,984
+25%        15000              0       Sum of Wgt.       5,984
+
+50%        30000                      Mean            70037.8
+                        Largest       Std. Dev.      91061.79
+75%       100000        1200000
+90%       200000        1200000       Variance       8.29e+09
+95%       250000        1200000       Skewness       3.447086
+99%       350000        1200000       Kurtosis       26.97365
+
+. 
+. * Share of food-insecure individuals within each satisfaction category
+. tabulate SubjectiveWelfare FoodInsecurity, row nofreq
+
+                   |   Worried about not
+ Satisfaction with |  having enough food,
+life as a whole (1 |      past 7 days
+             to 6) |        NO        YES |     Total
+-------------------+----------------------+----------
+ VERY DISSATISFIED |     63.21      36.79 |    100.00 
+      DISSATISFIED |     76.67      23.33 |    100.00 
+       INDIFFERENT |     87.50      12.50 |    100.00 
+SOMEWHAT SATISFIED |     80.92      19.08 |    100.00 
+         SATISFIED |     88.15      11.85 |    100.00 
+    VERY SATISFIED |     75.86      24.14 |    100.00 
+-------------------+----------------------+----------
+             Total |     80.98      19.02 |    100.00 
+
+. 
+. * Estimation sample of the main specification
+. quietly ologit SubjectiveWelfare FoodInsecurity Labor Healthcare HousingCost100k
+
+. generate byte Sample = e(sample)
+
+. 
+. * Table 1: summary statistics, estimation sample
+. tabstat SubjectiveWelfare FoodInsecurity FoodShortage12m Labor Healthcare     ///
+>         HousingCost100k Female Age School Married HouseholdSize Urban          ///
+>         if Sample, statistics(n mean sd min max) columns(statistics) format(%9.3f)
+
+    variable |         N      mean        sd       min       max
+-------------+--------------------------------------------------
+Subjective~e |  3357.000     3.565     1.302     1.000     6.000
+FoodInsecu~y |  3357.000     0.195     0.396     0.000     1.000
+FoodShor~12m |  3357.000     0.186     0.389     0.000     1.000
+       Labor |  3357.000     0.286     0.452     0.000     1.000
+  Healthcare |  3357.000     0.239     0.426     0.000     1.000
+Housing~100k |  3357.000     0.817     1.017     0.000    12.000
+      Female |  3357.000     0.502     0.500     0.000     1.000
+         Age |  3357.000    39.212    16.674    15.000    98.000
+      School |  3357.000     0.892     0.311     0.000     1.000
+     Married |  3357.000     0.617     0.486     0.000     1.000
+HouseholdS~e |  3357.000     9.053     5.132     1.000    35.000
+       Urban |  3357.000     0.438     0.496     0.000     1.000
+----------------------------------------------------------------
+
+. 
+. * Figure 1: distribution of life satisfaction
+. graph pie, over(SubjectiveWelfare) pie(1, explode) pie(2, explode) pie(3, explode) pie(4, explode) pie(5, explode) pie(6, explode) pl
+> abel(_all percent, format(%9.2f)) title("Proportion of Individuals by Life Satisfaction Levels", size(Medium)) note("Source: World Ba
+> nk LSMS Tanzania - Plus 2019-2020", size(small)) legend(cols(2) size(small))
+(note:  named style Medium not found in class gsize, default attributes used)
+
+. graph export "output/fig1_life_satisfaction.png", replace width(2000)
+(file /Users/hawakebe/Downloads/Projects/Tanzania/output/fig1_life_satisfaction.png written in PNG format)
+
+. 
+. * Figure 2: food insecurity
+. graph pie, over(FoodInsecurity) pie(1, explode) pie(2, explode) plabel(_all percent, format(%9.2f)) title("Proportion of Individuals 
+> Worried About Food Insecurity", size(Medium)) note("Source: World Bank LSMS Tanzania - Plus 2019-2020", size(small))
+(note:  named style Medium not found in class gsize, default attributes used)
+
+. graph export "output/fig2_food_insecurity.png", replace width(2000)
+(file /Users/hawakebe/Downloads/Projects/Tanzania/output/fig2_food_insecurity.png written in PNG format)
+
+. 
+. * Figure 3: food insecurity status by life satisfaction level
+. graph bar (percent), over(SubjectiveWelfare, label(angle(45) labsize(small))) over(FoodInsecurity) title("Food Insecurity Status by L
+> ife Satisfaction Levels") ytitle("Percent") note("Source: World Bank LSMS Tanzania - Plus 2019-2020") stack
+
+. graph export "output/fig3_fi_by_satisfaction.png", replace width(2000)
+(file /Users/hawakebe/Downloads/Projects/Tanzania/output/fig3_fi_by_satisfaction.png written in PNG format)
+
+. 
+. * -----------------------------------------------------------------------------
+. * 4. Correlation matrix (Table 2)
+. * -----------------------------------------------------------------------------
+. 
+. pwcorr SubjectiveWelfare FoodInsecurity Labor Healthcare HousingCost, sig
+
+             | Subjec~e FoodIn~y    Labor Health~e Housin~t
+-------------+---------------------------------------------
+Subjective~e |   1.0000 
+             |
+             |
+FoodInsecu~y |  -0.1220   1.0000 
+             |   0.0000
+             |
+       Labor |   0.0413  -0.0597   1.0000 
+             |   0.0080   0.0000
+             |
+  Healthcare |  -0.0282   0.0557   0.0371   1.0000 
+             |   0.0706   0.0000   0.0037
+             |
+ HousingCost |   0.1797  -0.1255   0.1010   0.0196   1.0000 
+             |   0.0000   0.0000   0.0000   0.1311
+             |
+
+. 
+. * -----------------------------------------------------------------------------
+. * 5. Ordered logit models (Table 3)
+. * -----------------------------------------------------------------------------
+. 
+. * Model 1: food insecurity only, heteroskedasticity-robust standard errors
+. ologit SubjectiveWelfare FoodInsecurity, vce(robust)
+
+Iteration 0:   log pseudolikelihood = -5059.6257  
+Iteration 1:   log pseudolikelihood =  -5026.852  
+Iteration 2:   log pseudolikelihood = -5026.8259  
+Iteration 3:   log pseudolikelihood = -5026.8259  
+
+Ordered logistic regression                     Number of obs     =      4,111
+                                                Wald chi2(1)      =      65.67
+                                                Prob > chi2       =     0.0000
+Log pseudolikelihood = -5026.8259               Pseudo R2         =     0.0065
+
+-----------------------------------------------------------------------------------
+                  |               Robust
+SubjectiveWelfare |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+------------------+----------------------------------------------------------------
+   FoodInsecurity |  -.5928807   .0731597    -8.10   0.000    -.7362711   -.4494904
+------------------+----------------------------------------------------------------
+            /cut1 |  -3.771726   .0990804                      -3.96592   -3.577532
+            /cut2 |  -.6608286   .0359108                     -.7312125   -.5904446
+            /cut3 |  -.6523822   .0358821                     -.7227098   -.5820547
+            /cut4 |   .8321752   .0369582                      .7597385    .9046119
+            /cut5 |   4.858306     .18624                      4.493282    5.223329
+-----------------------------------------------------------------------------------
+
+. outreg2 using "output/Table3_ologit.doc", replace ctitle(Model 1) label
+output/Table3_ologit.doc
+dir : seeout
+
+. 
+. * Model 2: with controls, heteroskedasticity-robust standard errors
+. ologit SubjectiveWelfare FoodInsecurity Labor Healthcare HousingCost100k, vce(robust)
+
+Iteration 0:   log pseudolikelihood =  -4132.514  
+Iteration 1:   log pseudolikelihood =  -4028.098  
+Iteration 2:   log pseudolikelihood = -4027.7385  
+Iteration 3:   log pseudolikelihood = -4027.7381  
+
+Ordered logistic regression                     Number of obs     =      3,357
+                                                Wald chi2(4)      =     175.96
+                                                Prob > chi2       =     0.0000
+Log pseudolikelihood = -4027.7381               Pseudo R2         =     0.0254
+
+-----------------------------------------------------------------------------------
+                  |               Robust
+SubjectiveWelfare |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+------------------+----------------------------------------------------------------
+   FoodInsecurity |  -.5603021   .0803474    -6.97   0.000    -.7177801   -.4028241
+            Labor |   .1876239   .0706795     2.65   0.008     .0490947    .3261531
+       Healthcare |  -.1839275   .0730765    -2.52   0.012    -.3271548   -.0407001
+  HousingCost100k |   .3816837   .0356548    10.70   0.000     .3118015    .4515659
+------------------+----------------------------------------------------------------
+            /cut1 |   -3.50138   .1122784                     -3.721442   -3.281319
+            /cut2 |  -.4162748   .0524176                     -.5190114   -.3135382
+            /cut3 |  -.4095679   .0524234                     -.5123159   -.3068199
+            /cut4 |   1.077645   .0556675                      .9685383    1.186751
+            /cut5 |   5.409261    .226941                      4.964465    5.854058
+-----------------------------------------------------------------------------------
+
+. outreg2 using "output/Table3_ologit.doc", append ctitle(Model 2) label
+output/Table3_ologit.doc
+dir : seeout
+
+. 
+. * Model 3 (preferred): same specification, standard errors clustered by
+. * household. Food insecurity and housing cost take one value per household,
+. * so individuals of the same household are not independent observations.
+. ologit SubjectiveWelfare FoodInsecurity Labor Healthcare HousingCost100k, vce(cluster HHID)
+
+Iteration 0:   log pseudolikelihood =  -4132.514  
+Iteration 1:   log pseudolikelihood =  -4028.098  
+Iteration 2:   log pseudolikelihood = -4027.7385  
+Iteration 3:   log pseudolikelihood = -4027.7381  
+
+Ordered logistic regression                     Number of obs     =      3,357
+                                                Wald chi2(4)      =      40.52
+                                                Prob > chi2       =     0.0000
+Log pseudolikelihood = -4027.7381               Pseudo R2         =     0.0254
+
+                                      (Std. Err. adjusted for 933 clusters in HHID)
+-----------------------------------------------------------------------------------
+                  |               Robust
+SubjectiveWelfare |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+------------------+----------------------------------------------------------------
+   FoodInsecurity |  -.5603021   .1361693    -4.11   0.000     -.827189   -.2934152
+            Labor |   .1876239   .1248746     1.50   0.133    -.0571259    .4323737
+       Healthcare |  -.1839275   .1231568    -1.49   0.135    -.4253103    .0574553
+  HousingCost100k |   .3816837   .0777847     4.91   0.000     .2292285    .5341389
+------------------+----------------------------------------------------------------
+            /cut1 |   -3.50138   .1857557                     -3.865455   -3.137306
+            /cut2 |  -.4162748   .0864062                     -.5856278   -.2469218
+            /cut3 |  -.4095679   .0864271                     -.5789619   -.2401739
+            /cut4 |   1.077645   .0923478                      .8966464    1.258643
+            /cut5 |   5.409261   .4868747                      4.455004    6.363518
+-----------------------------------------------------------------------------------
+
+. outreg2 using "output/Table3_ologit.doc", append ctitle(Model 3) label
+output/Table3_ologit.doc
+dir : seeout
+
+. 
+. * Odds ratios for Model 3
+. ologit, or
+
+Ordered logistic regression                     Number of obs     =      3,357
+                                                Wald chi2(4)      =      40.52
+                                                Prob > chi2       =     0.0000
+Log pseudolikelihood = -4027.7381               Pseudo R2         =     0.0254
+
+                                      (Std. Err. adjusted for 933 clusters in HHID)
+-----------------------------------------------------------------------------------
+                  |               Robust
+SubjectiveWelfare | Odds Ratio   Std. Err.      z    P>|z|     [95% Conf. Interval]
+------------------+----------------------------------------------------------------
+   FoodInsecurity |   .5710365   .0777576    -4.11   0.000     .4372767    .7457125
+            Labor |    1.20638   .1506462     1.50   0.133     .9444752    1.540911
+       Healthcare |   .8319961   .1024659    -1.49   0.135      .653567    1.059138
+  HousingCost100k |   1.464749   .1139351     4.91   0.000     1.257629    1.705979
+------------------+----------------------------------------------------------------
+            /cut1 |   -3.50138   .1857557                     -3.865455   -3.137306
+            /cut2 |  -.4162748   .0864062                     -.5856278   -.2469218
+            /cut3 |  -.4095679   .0864271                     -.5789619   -.2401739
+            /cut4 |   1.077645   .0923478                      .8966464    1.258643
+            /cut5 |   5.409261   .4868747                      4.455004    6.363518
+-----------------------------------------------------------------------------------
+Note: Estimates are transformed only in the first equation.
+
+. 
+. * -----------------------------------------------------------------------------
+. * 6. Average marginal effects from Model 3 (Table 4)
+. * -----------------------------------------------------------------------------
+. 
+. * Effect of each regressor on the probability of each satisfaction category
+. margins, dydx(*)
+
+Average marginal effects                        Number of obs     =      3,357
+Model VCE    : Robust
+
+dy/dx w.r.t. : FoodInsecurity Labor Healthcare HousingCost100k
+1._predict   : Pr(SubjectiveWelfare==1), predict(pr outcome(1))
+2._predict   : Pr(SubjectiveWelfare==2), predict(pr outcome(2))
+3._predict   : Pr(SubjectiveWelfare==3), predict(pr outcome(3))
+4._predict   : Pr(SubjectiveWelfare==4), predict(pr outcome(4))
+5._predict   : Pr(SubjectiveWelfare==5), predict(pr outcome(5))
+6._predict   : Pr(SubjectiveWelfare==6), predict(pr outcome(6))
+
+---------------------------------------------------------------------------------
+                |            Delta-method
+                |      dy/dx   Std. Err.      z    P>|z|     [95% Conf. Interval]
+----------------+----------------------------------------------------------------
+FoodInsecurity  |
+       _predict |
+             1  |   .0142145   .0042861     3.32   0.001     .0058139    .0226152
+             2  |   .1088575   .0255068     4.27   0.000      .058865    .1588499
+             3  |   .0002146   .0001264     1.70   0.089    -.0000331    .0004623
+             4  |  -.0105748   .0047674    -2.22   0.027    -.0199187    -.001231
+             5  |  -.1091265   .0265153    -4.12   0.000    -.1610956   -.0571575
+             6  |  -.0035852   .0019462    -1.84   0.065    -.0073998    .0002293
+----------------+----------------------------------------------------------------
+Labor           |
+       _predict |
+             1  |  -.0047599   .0032368    -1.47   0.141    -.0111039    .0015841
+             2  |  -.0364522   .0240472    -1.52   0.130    -.0835839    .0106794
+             3  |  -.0000719   .0000622    -1.16   0.248    -.0001937      .00005
+             4  |   .0035411   .0024426     1.45   0.147    -.0012462    .0083284
+             5  |   .0365423   .0243954     1.50   0.134    -.0112717    .0843564
+             6  |   .0012006   .0010506     1.14   0.253    -.0008587    .0032598
+----------------+----------------------------------------------------------------
+Healthcare      |
+       _predict |
+             1  |   .0046661   .0032387     1.44   0.150    -.0016816    .0110139
+             2  |   .0357341   .0238193     1.50   0.134    -.0109508     .082419
+             3  |   .0000705   .0000599     1.18   0.240     -.000047    .0001879
+             4  |  -.0034713   .0026863    -1.29   0.196    -.0087365    .0017938
+             5  |  -.0358224   .0238803    -1.50   0.134    -.0826268     .010982
+             6  |  -.0011769   .0010488    -1.12   0.262    -.0032326    .0008787
+----------------+----------------------------------------------------------------
+HousingCost100k |
+       _predict |
+             1  |  -.0096831   .0023336    -4.15   0.000    -.0142568   -.0051094
+             2  |  -.0741548   .0144971    -5.12   0.000    -.1025687    -.045741
+             3  |  -.0001462   .0000841    -1.74   0.082     -.000311    .0000186
+             4  |   .0072037   .0031241     2.31   0.021     .0010805    .0133268
+             5  |   .0743381   .0145331     5.12   0.000     .0458539    .1028224
+             6  |   .0024423   .0014143     1.73   0.084    -.0003297    .0052143
+---------------------------------------------------------------------------------
+
+. 
+. * -----------------------------------------------------------------------------
+. * 7. Robustness (Table 5)
+. * -----------------------------------------------------------------------------
+. 
+. global controls Female Age AgeSq100 School Married HouseholdSize Urban
+
+. 
+. * (1) Baseline: Model 3
+. ologit SubjectiveWelfare FoodInsecurity Labor Healthcare HousingCost100k, vce(cluster HHID)
+
+Iteration 0:   log pseudolikelihood =  -4132.514  
+Iteration 1:   log pseudolikelihood =  -4028.098  
+Iteration 2:   log pseudolikelihood = -4027.7385  
+Iteration 3:   log pseudolikelihood = -4027.7381  
+
+Ordered logistic regression                     Number of obs     =      3,357
+                                                Wald chi2(4)      =      40.52
+                                                Prob > chi2       =     0.0000
+Log pseudolikelihood = -4027.7381               Pseudo R2         =     0.0254
+
+                                      (Std. Err. adjusted for 933 clusters in HHID)
+-----------------------------------------------------------------------------------
+                  |               Robust
+SubjectiveWelfare |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+------------------+----------------------------------------------------------------
+   FoodInsecurity |  -.5603021   .1361693    -4.11   0.000     -.827189   -.2934152
+            Labor |   .1876239   .1248746     1.50   0.133    -.0571259    .4323737
+       Healthcare |  -.1839275   .1231568    -1.49   0.135    -.4253103    .0574553
+  HousingCost100k |   .3816837   .0777847     4.91   0.000     .2292285    .5341389
+------------------+----------------------------------------------------------------
+            /cut1 |   -3.50138   .1857557                     -3.865455   -3.137306
+            /cut2 |  -.4162748   .0864062                     -.5856278   -.2469218
+            /cut3 |  -.4095679   .0864271                     -.5789619   -.2401739
+            /cut4 |   1.077645   .0923478                      .8966464    1.258643
+            /cut5 |   5.409261   .4868747                      4.455004    6.363518
+-----------------------------------------------------------------------------------
+
+. outreg2 using "output/Table5_robustness.doc", replace ctitle(Baseline) label
+output/Table5_robustness.doc
+dir : seeout
+
+. 
+. * (2) Demographic controls
+. ologit SubjectiveWelfare FoodInsecurity Labor Healthcare HousingCost100k $controls, ///
+>     vce(cluster HHID)
+
+Iteration 0:   log pseudolikelihood =  -4132.514  
+Iteration 1:   log pseudolikelihood = -3967.3768  
+Iteration 2:   log pseudolikelihood = -3966.5072  
+Iteration 3:   log pseudolikelihood = -3966.5058  
+Iteration 4:   log pseudolikelihood = -3966.5058  
+
+Ordered logistic regression                     Number of obs     =      3,357
+                                                Wald chi2(11)     =      69.54
+                                                Prob > chi2       =     0.0000
+Log pseudolikelihood = -3966.5058               Pseudo R2         =     0.0402
+
+                                      (Std. Err. adjusted for 933 clusters in HHID)
+-----------------------------------------------------------------------------------
+                  |               Robust
+SubjectiveWelfare |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+------------------+----------------------------------------------------------------
+   FoodInsecurity |  -.5469008   .1380106    -3.96   0.000    -.8173966    -.276405
+            Labor |    .312553   .1326708     2.36   0.018     .0525229     .572583
+       Healthcare |  -.1745658   .1244753    -1.40   0.161    -.4185329    .0694012
+  HousingCost100k |   .4113549   .0840695     4.89   0.000     .2465817    .5761281
+           Female |    .201265   .1016596     1.98   0.048     .0020158    .4005142
+              Age |  -.0697653   .0154416    -4.52   0.000    -.1000302   -.0395003
+         AgeSq100 |   .0748737   .0172493     4.34   0.000     .0410656    .1086817
+           School |  -.0221203    .145387    -0.15   0.879    -.3070736    .2628329
+          Married |   .2858995   .1149394     2.49   0.013     .0606224    .5111765
+    HouseholdSize |   .0424988   .0150739     2.82   0.005     .0129545    .0720431
+            Urban |  -.3754097   .1377479    -2.73   0.006    -.6453907   -.1054288
+------------------+----------------------------------------------------------------
+            /cut1 |  -4.396339   .3617114                      -5.10528   -3.687397
+            /cut2 |  -1.279417   .3301315                     -1.926463   -.6323712
+            /cut3 |  -1.272586    .330166                       -1.9197   -.6254729
+            /cut4 |   .2563324   .3309774                     -.3923713    .9050362
+            /cut5 |   4.660346   .5958192                      3.492562     5.82813
+-----------------------------------------------------------------------------------
+
+. outreg2 using "output/Table5_robustness.doc", append ctitle(Controls) label
+output/Table5_robustness.doc
+dir : seeout
+
+. 
+. * (3) Alternative measure: food shortage in the past 12 months
+. pwcorr FoodInsecurity FoodShortage12m
+
+             | FoodIn~y Food~12m
+-------------+------------------
+FoodInsecu~y |   1.0000 
+FoodShor~12m |   0.5878   1.0000 
+
+. ologit SubjectiveWelfare FoodShortage12m Labor Healthcare HousingCost100k $controls, ///
+>     vce(cluster HHID)
+
+Iteration 0:   log pseudolikelihood =  -4132.514  
+Iteration 1:   log pseudolikelihood = -3957.9191  
+Iteration 2:   log pseudolikelihood = -3956.9628  
+Iteration 3:   log pseudolikelihood = -3956.9615  
+Iteration 4:   log pseudolikelihood = -3956.9615  
+
+Ordered logistic regression                     Number of obs     =      3,357
+                                                Wald chi2(11)     =      72.26
+                                                Prob > chi2       =     0.0000
+Log pseudolikelihood = -3956.9615               Pseudo R2         =     0.0425
+
+                                      (Std. Err. adjusted for 933 clusters in HHID)
+-----------------------------------------------------------------------------------
+                  |               Robust
+SubjectiveWelfare |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+------------------+----------------------------------------------------------------
+  FoodShortage12m |  -.6803349   .1481721    -4.59   0.000    -.9707469    -.389923
+            Labor |   .3316684   .1337205     2.48   0.013     .0695811    .5937558
+       Healthcare |  -.1879893    .125051    -1.50   0.133    -.4330847    .0571061
+  HousingCost100k |   .3924275   .0847104     4.63   0.000     .2263981    .5584569
+           Female |   .2084896   .1018986     2.05   0.041     .0087719    .4082073
+              Age |  -.0721282   .0153792    -4.69   0.000    -.1022708   -.0419856
+         AgeSq100 |   .0774092   .0171381     4.52   0.000     .0438192    .1109992
+           School |  -.0609095   .1431363    -0.43   0.670    -.3414515    .2196325
+          Married |   .3336034   .1152215     2.90   0.004     .1077734    .5594335
+    HouseholdSize |   .0434153   .0150754     2.88   0.004     .0138681    .0729626
+            Urban |  -.3668597   .1380642    -2.66   0.008    -.6374606   -.0962588
+------------------+----------------------------------------------------------------
+            /cut1 |  -4.479815   .3675873                     -5.200272   -3.759357
+            /cut2 |  -1.347759   .3341671                     -2.002715   -.6928037
+            /cut3 |  -1.340878   .3342029                     -1.995904   -.6858527
+            /cut4 |   .1943214   .3336672                     -.4596543    .8482971
+            /cut5 |   4.587487   .5958115                      3.419718    5.755256
+-----------------------------------------------------------------------------------
+
+. outreg2 using "output/Table5_robustness.doc", append ctitle(12-month measure) label
+output/Table5_robustness.doc
+dir : seeout
+
+. 
+. * (4) Linear model (OLS), treating the six-point scale as cardinal
+. regress SubjectiveWelfare FoodInsecurity Labor Healthcare HousingCost100k $controls, ///
+>     vce(cluster HHID)
+
+Linear regression                               Number of obs     =      3,357
+                                                F(11, 932)        =       7.69
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.0755
+                                                Root MSE          =     1.2544
+
+                                    (Std. Err. adjusted for 933 clusters in HHID)
+---------------------------------------------------------------------------------
+                |               Robust
+SubjectiveWel~e |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+----------------+----------------------------------------------------------------
+ FoodInsecurity |    -.35711   .0945168    -3.78   0.000    -.5426003   -.1716197
+          Labor |   .1964961   .0839867     2.34   0.020     .0316711    .3613212
+     Healthcare |  -.1114476   .0845251    -1.32   0.188    -.2773292     .054434
+HousingCost100k |   .2095293   .0472653     4.43   0.000     .1167706     .302288
+         Female |   .1201184   .0676675     1.78   0.076    -.0126799    .2529166
+            Age |  -.0393735   .0098539    -4.00   0.000     -.058712    -.020035
+       AgeSq100 |   .0425845   .0108551     3.92   0.000     .0212812    .0638879
+         School |  -.0144818   .0967494    -0.15   0.881    -.2043537    .1753902
+        Married |   .1747522   .0773156     2.26   0.024     .0230193    .3264851
+  HouseholdSize |   .0264847   .0084233     3.14   0.002     .0099539    .0430154
+          Urban |   -.195963   .0873857    -2.24   0.025    -.3674586   -.0244674
+          _cons |   3.895347   .2257924    17.25   0.000     3.452226    4.338467
+---------------------------------------------------------------------------------
+
+. outreg2 using "output/Table5_robustness.doc", append ctitle(OLS) label
+output/Table5_robustness.doc
+dir : seeout
+
+. 
+. * Baseline with standard errors clustered by enumeration area (in the text)
+. ologit SubjectiveWelfare FoodInsecurity Labor Healthcare HousingCost100k, ///
+>     vce(cluster sdd_cluster)
+
+Iteration 0:   log pseudolikelihood = -3267.5309  
+Iteration 1:   log pseudolikelihood = -3179.5105  
+Iteration 2:   log pseudolikelihood = -3179.1372  
+Iteration 3:   log pseudolikelihood = -3179.1366  
+Iteration 4:   log pseudolikelihood = -3179.1366  
+
+Ordered logistic regression                     Number of obs     =      2,637
+                                                Wald chi2(4)      =      32.77
+                                                Prob > chi2       =     0.0000
+Log pseudolikelihood = -3179.1366               Pseudo R2         =     0.0271
+
+                               (Std. Err. adjusted for 145 clusters in sdd_cluster)
+-----------------------------------------------------------------------------------
+                  |               Robust
+SubjectiveWelfare |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+------------------+----------------------------------------------------------------
+   FoodInsecurity |  -.5874668   .1592283    -3.69   0.000    -.8995486    -.275385
+            Labor |   .1758754   .1676391     1.05   0.294    -.1526913    .5044421
+       Healthcare |  -.1597668   .1349528    -1.18   0.236    -.4242693    .1047358
+  HousingCost100k |   .3946166   .0944152     4.18   0.000     .2095662     .579667
+------------------+----------------------------------------------------------------
+            /cut1 |   -3.42336   .2083917                       -3.8318    -3.01492
+            /cut2 |  -.3406608   .1038489                     -.5442009   -.1371207
+            /cut3 |  -.3322311   .1045989                     -.5372411   -.1272211
+            /cut4 |   1.130719   .1118149                      .9115661    1.349872
+            /cut5 |   5.358651   .5827995                      4.216385    6.500917
+-----------------------------------------------------------------------------------
+
+. 
+. * -----------------------------------------------------------------------------
+. log close
+      name:  <unnamed>
+       log:  /Users/hawakebe/Downloads/Projects/Tanzania/output/food_insecurity_tanzania.log
+  log type:  text
+ closed on:  16 Nov 2026, 20:43:02
+---------------------------------------------------------------------------------------------------------------------------------------
